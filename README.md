@@ -18,6 +18,9 @@ Local binary patterns (LBP) is a type of visual descriptor used for classificati
 ├── ...
 ```
 
+## 
+[opencv](https://docs.opencv.org/master/d7/d9f/tutorial_linux_install.html) 
+
 ## Authors
 This project was carried out in collaboration with [Francesca Del Lungo](https://github.com/francidellungo) for the Parallel Computing exam.
 

@@ -10,4 +10,5 @@ int main() {
     std::cout << "Max threads per block: " << deviceProp.maxThreadsPerBlock << std::endl;
     std::cout << "Shared memory per block: " << deviceProp.sharedMemPerBlock << std::endl;
     return 0;
+
 }
