@@ -10,6 +10,9 @@ Local binary patterns (LBP) is a type of visual descriptor used for classificati
 ```bash
 ├── src                       # Source files
 │   ├── 
+├── res                      # Resources files
+│   ├── images
+├── ...
 ├── docs                      # Documentation files
 │   ├── 
 ├── ...
