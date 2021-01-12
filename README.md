@@ -11,7 +11,7 @@ Local binary patterns (LBP) is a type of visual descriptor used for classificati
 ├── src                       # Source files
 │   ├── 
 ├── res                      # Resources files
-│   ├── images
+│   ├── images               # images
 ├── ...
 ├── docs                      # Documentation files
 │   ├── 
