@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.15)
 project(LBP_Descriptor_CUDA CUDA)
 
 set(CMAKE_CUDA_STANDARD 14)
