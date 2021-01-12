@@ -9,3 +9,5 @@ set_target_properties(
         LBP_Descriptor_CUDA
         PROPERTIES
         CUDA_SEPARABLE_COMPILATION ON)
+
+# -----------------------------------------------------
