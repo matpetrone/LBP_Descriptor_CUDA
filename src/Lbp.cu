@@ -1,28 +1,28 @@
 #include<iostream>
 #include<cmath>
 
-__global__ void lbp_kernel(cv::Mat grayImage, cv::Mat outputImage){
-    int maskwidth = 3;
-    int w = grayImage.cols;
-    int h = grayImage.rows;
+__constant__ int MASK_WIDTH = 3;
+
+__global__ void lbpKernel(int* grayImage, int* outputImage, int width, int height){
+//    Naive cuda kernel to compute LBP descriptor
     int col = blockIdx.x * blockDim.x + threadIdx.x;
     int row = blockIdx.y * blockDim.y + threadIdx.y;
 
-    if (col < w && row < h){
+    if (col < width && row < height){ // Ensure that threads do not attempt illegal memory access (this can happen because there could be more threads than elements in an array)
         int pixVal = 0;
-        int threshold_values[maskwidth*maskwidth-1];
-        N_start_col = col - (maskwidth/2);
-        N_start_row = row - (maskwidth/2);
-        int center_idx = int(floor(maskwidth/2));
+        int threshold_values[MASK_WIDTH * MASK_WIDTH - 1];
+        int N_start_col = col - (MASK_WIDTH / 2);
+        int N_start_row = row - (MASK_WIDTH / 2);
+        int center_idx = int(floor(MASK_WIDTH / 2));
         int arr_idx = 0;
-        for (int j = 0; j < maskwidth; j++){
-            for (int k = 0; k < maskwidth; k++){
-                int curRow = N_Start_row + j;
+        for (int j = 0; j < MASK_WIDTH; j++){
+            for (int k = 0; k < MASK_WIDTH; k++){
+                int curRow = N_start_row + j;
                 int curCol = N_start_col + k;
                 // Verify we have a valid image pixel
-                if(curRow > -1 && curRow < h && curCol > -1 && curCol < w) {
+                if(curRow > -1 && curRow < height && curCol > -1 && curCol < width) {
                     if (curRow != row && curCol != col){
-                        if (grayImage[curRow * w + curCol] >= grayImage[row * w + col])
+                        if (grayImage[curRow * width + curCol] >= grayImage[row * width + col])
                             threshold_values[arr_idx++] = 1;
                         else
                             threshold_values[arr_idx++] = 0;
@@ -34,7 +34,7 @@ __global__ void lbp_kernel(cv::Mat grayImage, cv::Mat outputImage){
             if (threshold_values[i] == 1)
                 pixVal += 2**i;
         }
-        outputImage[row * w + col] = pixVal;
+        outputImage[row * width + col] = pixVal;
     }
 
 

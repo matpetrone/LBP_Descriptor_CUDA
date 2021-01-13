@@ -1,7 +1,7 @@
 # LBP Descriptor CUDA
 Project for the Parallel Computing exam at the University of Florence.
 
-The sequential and first parallel implementations for the same project can be find here: [LBP descriptor](https://github.com/matpetrone/LBP_Descriptor).
+The sequential and first parallel implementations for the same project can be found here: [LBP descriptor](https://github.com/matpetrone/LBP_Descriptor).
 
 Local binary patterns (LBP) is a type of visual descriptor used for classification in computer vision. It has since been found to be a powerful feature for texture classification.
 
@@ -11,7 +11,8 @@ Local binary patterns (LBP) is a type of visual descriptor used for classificati
 ├── src                       # Source files
 │   ├── 
 ├── res                      # Resources files
-│   ├── images               # images
+│   ├── images               # Images
+│   ├── csv_images           # Images as matrices of int (grayscale)
 ├── ...
 ├── docs                      # Documentation files
 │   ├── 
