@@ -1,6 +1,5 @@
 import argparse
 import os
-
 import numpy as np
 import matplotlib.image as img
 import matplotlib.pyplot as plt
@@ -14,6 +13,10 @@ def rgb2gray(rgb):
     gray = np.dot(rgb[..., :3], [0.2989, 0.5870, 0.1140])
     # gray = np.array([[min(255, max(0, ai)) for ai in c] for c in gray])
     return gray
+
+def padding():
+    pass
+
 
 
 def main(images_dir, filename, out_dir):
@@ -54,7 +57,7 @@ if __name__ == '__main__':
     # images_directory
     parser.add_argument("-id", "--img_dir", help="image directory", default="res/images", type=str)
     # filename
-    parser.add_argument("-f", "--filename", help="image filename", default="gray.jpeg", type=str)
+    parser.add_argument("-f", "--filename", help="image filename", default="gray.jpg", type=str)
     # output dir
     parser.add_argument("-od", "--out_dir", help="output directory to save generated csv file", default="res/csv_images", type=str)
 
