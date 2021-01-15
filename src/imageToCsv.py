@@ -1,5 +1,6 @@
 import argparse
 import os
+import csv
 
 import numpy as np
 import matplotlib.image as img
@@ -14,6 +15,59 @@ def rgb2gray(rgb):
     gray = np.dot(rgb[..., :3], [0.2989, 0.5870, 0.1140])
     # gray = np.array([[min(255, max(0, ai)) for ai in c] for c in gray])
     return gray
+
+
+# -----------
+""" read csv from file """
+
+
+def loadData(source_dir, skip_header=False):
+    """
+    Load dataset from file
+    :param source_dir: directory where to load data
+    :return: loaded dataset
+    """
+    # d = np.load(source_dir + '.csv')
+    dates = []
+
+    with open(source_dir) as csvDataFile:
+        csvReader = csv.reader(csvDataFile)
+        if skip_header: next(csvReader)
+        for row in csvReader:
+            dates.append([float(r) for r in row])
+
+    return np.array(dates)
+
+
+""" Plot histogram """
+
+def plotHistogram(x,y, filename):
+    # import numpy as np
+    # import matplotlib.pyplot as plt
+
+    # n, bins, patches = plt.hist(x, 200, facecolor='g', alpha=0.75, rwidth=30) #, density=True)
+    n_pixels = sum(y)
+    plt.bar(x, [yi/n_pixels for yi in y])
+
+    plt.xlabel('Pixel value')
+    plt.ylabel('Frequency (% of pixels)')
+    plt.title('LBP Histogram')
+    plt.xlim(0, 256)
+    # plt.ylim(0, .5)
+    # plt.grid(True)
+    plt.savefig(filename)
+    plt.show()
+
+
+image_name = "computer_programming"
+histogram_csv_filename = "../res/histograms/" + image_name + "_hist.csv"
+data = loadData(histogram_csv_filename)
+
+n_bin = data[:,0]
+bin_values = data[:,1]
+# print(max(bin_values))
+
+plotHistogram(n_bin, bin_values, image_name + ".jpg")
 
 
 def main(images_dir, filename, out_dir):
@@ -48,15 +102,14 @@ def main(images_dir, filename, out_dir):
     output_file = os.path.join(out_dir, filename.split('.')[0]) + '.csv'
     savetxt(output_file, image, delimiter=',', fmt='%i')
 
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    # images_directory
-    parser.add_argument("-id", "--img_dir", help="image directory", default="res/images", type=str)
-    # filename
-    parser.add_argument("-f", "--filename", help="image filename", default="gray.jpeg", type=str)
-    # output dir
-    parser.add_argument("-od", "--out_dir", help="output directory to save generated csv file", default="res/csv_images", type=str)
-
-    args = parser.parse_args()
-    main(args.img_dir, args.filename, args.out_dir)
+# if __name__ == '__main__':
+#     parser = argparse.ArgumentParser()
+#     # images_directory
+#     parser.add_argument("-id", "--img_dir", help="image directory", default="res/images", type=str)
+#     # filename
+#     parser.add_argument("-f", "--filename", help="image filename", default="gray.jpeg", type=str)
+#     # output dir
+#     parser.add_argument("-od", "--out_dir", help="output directory to save generated csv file", default="res/csv_images", type=str)
+# 
+#     args = parser.parse_args()
+#     main(args.img_dir, args.filename, args.out_dir)
