@@ -94,34 +94,6 @@ int main() {
 //    std::cout << "Max threads per block: " << deviceProp.maxThreadsPerBlock << std::endl;
 //    std::cout << "Shared memory per block: " << deviceProp.sharedMemPerBlock << std::endl;
 
-//    char pathh[] = __FILE__;
-//    std::string pp = std::string(pathh);
-//    std::cout << "Current path: " << pp << std::endl;
-
-//    std::string csv_filename = "res/csv_images/leopard.csv";
-//    std::vector<std::vector<int>> vec = getImageFromCsv(csv_filename);
-
-//    image as vector of vector of int to 2d linearized matrix
-//    int rows = vec.size();
-//    int cols = vec[0].size();
-//    int image[rows * cols];  // store image as a 2d linearized matrix
-//    for (int i = 0; i < rows; i++) {
-//        for (int j = 0; j < cols; j++){
-//            image[i* cols + j] = vec[i][j];
-////            std::cout << "vec: " << vec[i][j] << ", image: " << image[i][j] << std::endl;
-//        }
-//    }
-//    int new_image[rows * cols];
-
-
-//    lbpKernel<<<1,10>>>(image, new_image, cols, rows);
-//    dim3 num_blocks = dim3(16);
-//    dim3 num_threads = dim3(1);
-//    hello<<<1,2>>>();
-//    std::cout << "kernel : " << pp << std::endl;
-//    cudaDeviceSynchronize();
-//    std::cout << "kernel : " << pp << std::endl;
-
 
 // -----------------
 
@@ -158,15 +130,13 @@ int main() {
                imageWidth * imageHeight * imageChannels * sizeof(float));
     cudaMalloc((void **) &deviceOutputImageData,
                imageWidth * imageHeight * imageChannels * sizeof(float));
-//    cudaMalloc((void **) &deviceMaskData,
-//               maskRows * maskColumns * sizeof(float));
+
 
     // copy memory from host to device
     cudaMemcpy(deviceInputImageData, hostInputImageData,
                imageWidth * imageHeight * imageChannels * sizeof(float),
                cudaMemcpyHostToDevice);
-//    cudaMemcpy(deviceMaskData, hostMaskData,
-//               maskRows * maskColumns * sizeof(float), cudaMemcpyHostToDevice);
+
 
     dim3 dimGrid(ceil((float) imageWidth / BLOCK_DIM), ceil((float) imageHeight / BLOCK_DIM));
 //    dim3 dimGrid(64 , 62);
@@ -175,11 +145,8 @@ int main() {
 //    dim3 dimBlock(BLOCK_DIM, BLOCK_DIM);
     dim3 dimBlock(BLOCK_DIM, BLOCK_DIM);
     printf("dimGrid {%d, %d, %d}, dimBlock: {%d, %d, %d}\n", dimGrid.x, dimGrid.y , dimGrid.z, dimBlock.x, dimBlock.y , dimBlock.z);
-//    dim3 b( 100, 100 );
-//    dim3 t( 10,10);
+
     LBPkernel<<<dimGrid, dimBlock>>>(deviceInputImageData, deviceOutputImageData, imageWidth, imageHeight);
-//    convolutionTiling<<<dimGrid, dimBlock>>>(deviceInputImageData, deviceMaskData,
-//			deviceOutputImageData, imageChannels, imageWidth, imageHeight);
     cudaError_t  error = cudaDeviceSynchronize();
     if (error != cudaSuccess)
     {
@@ -192,12 +159,7 @@ int main() {
                imageWidth * imageHeight * imageChannels * sizeof(float),
                cudaMemcpyDeviceToHost);
 
-//    for (int i=0; i<10; i++){
-//        printf("2^ %d = %f\n", i, exp2f(i));
-//
-//    }
-//    float pix = Image_getPixel(outputImage, 1,1, 0);
-//    printf("pix %f\n", pix);
+
     PPM_export("res/images/ppm/processed_computer_programming.ppm", outputImage);
 
     // free device memory
