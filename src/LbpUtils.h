@@ -43,5 +43,32 @@ std::vector<std::vector<int>> getImageFromCsv(std::string& csv_file_name){
     return vec;
 };
 
+void saveHistogramToCsv(unsigned int histogram_bins[], const int n_bins, std::string &filename ){
+    std::cout << "saveHistogramToCsv" << std::endl;
+
+    std::ofstream myFile(filename);
+
+    // Send data to the stream
+    for (int i=0; i<n_bins; i++){
+        myFile << i;
+        myFile << ",";
+        myFile << histogram_bins[i];
+        myFile << "\n";
+    }
+//    for(auto & point : histogram_bins)
+//    {
+//        for(int coord_idx = 0; coord_idx < point.getValues().size(); coord_idx++)
+//        {
+//            myFile << point.getValues()[coord_idx];
+//            if(coord_idx != point.getValues().size() - 1)
+//                myFile << ",";
+//        }
+//
+//    }
+
+    // Close the file
+    myFile.close();
+}
+
 
 #endif //LBP_DESCRIPTOR_CUDA_LBPUTILS_H

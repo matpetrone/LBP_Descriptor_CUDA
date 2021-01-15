@@ -120,7 +120,7 @@ Image_t* PPM_import(const char *filename) {
 	float scale;
 
 	img = NULL;
-
+    system("pwd");
 	file = fopen(filename, "rb");
 	if (file == NULL) {
 		printf("Could not open %s\n", filename);
@@ -264,7 +264,7 @@ Image_t* PPMtoGrayscale(Image_t* inputImg){
         }
 
     }
-    PPM_export("outGrayImg.ppm", outImg);
+//    PPM_export("outGrayImg.ppm", outImg);
     return outImg;
 }
 //void PPMtoGrayscale(Image_t* img){
