@@ -43,8 +43,8 @@ __global__ void LBPkernel(float *img, float *out_img, int width, int height, uns
 //    !! the pixel values are between 0 and 1
     __shared__ unsigned int histogram_bins_sm[n_histogram_bins]; // shared memory to compute histogram
 
-    int center_col = blockIdx.x * blockDim.x + threadIdx.x;
-    int center_row = blockIdx.y * blockDim.y + threadIdx.y;
+    int  center_col = blockIdx.x * blockDim.x + threadIdx.x;
+    int  center_row = blockIdx.y * blockDim.y + threadIdx.y;
 
 //    Initialize histogram bins to 0
     for (int i = threadIdx.x; i < num_bins; i += blockDim.x)
@@ -82,7 +82,7 @@ __global__ void LBPkernel(float *img, float *out_img, int width, int height, uns
         }
 
         out_img[center_row * width + center_col] = (float)pixVal / 255;
-        printf("out img: %f \n",out_img[center_row * width + center_col] );
+//        printf("out img: %f \n",out_img[center_row * width + center_col] );
 
         // Histogram
         atomicAdd(&(histogram_bins_sm[(unsigned int)pixVal]), 1);
@@ -182,7 +182,7 @@ __global__ void LBPkernelTiling(float *img, float *out_img, const int width, con
         }
 
 //        Final image pixel value
-        out_img[tx * width + ty] = (float) pixVal / 255;
+        out_img[ty * width + tx] = (float) pixVal / 255;
 //        __syncthreads();
 
 // Compute histogram
@@ -262,17 +262,14 @@ int main() {
     cudaMemcpy(deviceHistogram, histogram_bins,
                n_histogram_bins * sizeof(unsigned int), cudaMemcpyHostToDevice);
 
-
-    dim3 dimGrid(ceil((float) imageWidth / TILE_WIDTH), ceil((float) imageHeight / TILE_WIDTH));
-
 //    dim3 dimBlock(TILE_WIDTH, TILE_WIDTH, 1);
 //    dim3 dimBlock(BLOCK_DIM, BLOCK_DIM);
+
+    dim3 dimGrid(ceil((float) imageWidth / TILE_WIDTH), ceil((float) imageHeight / TILE_WIDTH));
     dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
     printf("dimGrid {%d, %d, %d}, dimBlock: {%d, %d, %d}\n", dimGrid.x, dimGrid.y , dimGrid.z, dimBlock.x, dimBlock.y , dimBlock.z);
-//    printf("shared mem: %lu \n", n_histogram_bins * sizeof(unsigned int));
 //    LBPkernel<<<dimGrid, dimBlock, n_histogram_bins * sizeof(unsigned int)>>>(deviceInputImageData, deviceOutputImageData, imageWidth, imageHeight, deviceHistogram, n_histogram_bins);
     LBPkernelTiling<<<dimGrid, dimBlock>>>(deviceInputImageData, deviceOutputImageData, imageWidth, imageHeight, deviceHistogram, n_histogram_bins);
-//    LBPkernelTiling<<<dimGrid, dimBlock, n_histogram_bins * sizeof(unsigned int)>>>(deviceInputImageData, deviceOutputImageData, imageWidth, imageHeight, deviceHistogram, n_histogram_bins);
     cudaError_t  error = cudaDeviceSynchronize();
     if (error != cudaSuccess)
     {
