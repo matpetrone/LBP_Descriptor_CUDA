@@ -10,7 +10,7 @@
 // Constant values for LBP kerel
 #define MASK_WIDTH 3
 #define neighborhood  (MASK_WIDTH * MASK_WIDTH - 1)
-#define n_histogram_bins  256
+#define n_histogram_bins 256
 #define img_deep 255
 
 #define CUDA_CHECK_RETURN(value) CheckCudaErrorAux(__FILE__,__LINE__, #value, value)
@@ -217,92 +217,122 @@ int main() {
     float *deviceOutputImageData;
     unsigned int* deviceHistogram;
 
-//    int n_histogram_bins = 256; // pixel values from 0 to 255
-    unsigned int histogram_bins[n_histogram_bins];
-    for(int i = 0; i<n_histogram_bins; i++)
-        histogram_bins[i] = 0;
-
-    std::string colour[5] = { "sample_1920_1280", "computer_programming", "post_2", "borabora_1", "leopard" };
-//    std::string filename = "res/images/ppm/computer_programming.ppm";
+    String csvName = "res/results/results.csv";
+    std::ofstream csvFile(csvName);
+    std::string dataset[7] = {"giraffe360p", "tiger480p", "leopard720p", "cheetah1080p", "deer2160p", "wolf4320p", "panorama8640p"};
     std::string ppm_dir = "res/images/ppm/";
-    int image_idx = 1;
 
-    std::string filename = ppm_dir + colour[image_idx] + ".ppm";
-    inputImage = PPM_import(filename.c_str());
-//    inputImage = PPM_import("res/images/ppm/sample_1920_1280.ppm");
-    if (Image_getChannels(inputImage) == 3){
-//        If RGB image convert to grayscale
-        Image_t* oi = PPMtoGrayscale(inputImage);
-        inputImage = oi;
-        std::string gray_img_filename = ppm_dir + colour[image_idx] + "_gray" + ".ppm";
-        PPM_export(gray_img_filename.c_str(), oi);
+    //Esperiments
+    for (int img_idx = 0; img_idx < dataset->size(); img_idx++){
+        unsigned int histogram_bins[n_histogram_bins];
+        for(int i = 0; i<n_histogram_bins; i++)
+            histogram_bins[i] = 0;
+
+        std::string filename = ppm_dir + dataset[img_idx] +".ppm";
+        inputImage = PPM_import(filename.c_str());
+        if (Image_getChannels(inputImage) == 3){
+            //If RGB image convert to grayscale
+            Image_t* oi = PPMtoGrayscale(inputImage);
+            inputImage = oi;
+            std::string gray_img_filename = ppm_dir + dataset[image_idx] + "_gray" + ".ppm";
+            PPM_export(gray_img_filename.c_str(), oi);
+        }
+        imageWidth = Image_getWidth(inputImage);
+        imageHeight = Image_getHeight(inputImage);
+        imageChannels = Image_getChannels(inputImage);
+        assert(imageChannels == 1);
+        outputImage = Image_new(imageWidth, imageHeight, imageChannels);
+
+        hostInputImageData = Image_getData(inputImage);
+        hostOutputImageData = Image_getData(outputImage);
+
+        // allocate device buffers
+        cudaMalloc((void **) &deviceInputImageData, imageWidth * imageHeight * imageChannels * sizeof(float));
+        cudaMalloc((void **) &deviceOutputImageData, imageWidth * imageHeight * imageChannels * sizeof(float));
+        cudaMalloc((void **) &deviceHistogram, n_histogram_bins * sizeof(unsigned int));
+        // copy memory from host to device
+        cudaMemcpy(deviceInputImageData, hostInputImageData, imageWidth * imageHeight * imageChannels * sizeof(float), cudaMemcpyHostToDevice);
+        cudaMemcpy(deviceHistogram, histogram_bins, n_histogram_bins * sizeof(unsigned int), cudaMemcpyHostToDevice);
+
+        dim3 dimGrid(ceil((float) imageWidth / TILE_WIDTH), ceil((float) imageHeight / TILE_WIDTH));
+        dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
+
+        //CUDA non-Tiling Version with n_runs times mean
+        int n_runs = 15;
+        String csvLine = "N. runs: " + std::to_string(n_runs) + "\n";
+        csvFile << csvLine;
+        float delta_time = 0;
+        for (int j = 0; j < n_runs; j++){
+            std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
+            LBPkernel<<<dimGrid, dimBlock, n_histogram_bins * sizeof(unsigned int)>>>(deviceInputImageData, deviceOutputImageData, imageWidth, imageHeight, deviceHistogram, n_histogram_bins);
+            std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
+            delta_time += std::chrono::duration_cast<std::chrono::duration<float>>(end_time - start_time).count();
+        }
+        delta_time /= n_runs;
+        printf("Parallel Time execution for non-Tiling version: %f", delta_time);
+        csvLine = dataset[img_idx] + "," + std::to_string(delta_time) + "\n";
+        csvFile << csvLine;
+
+        // copy from device to host memory
+        cudaMemcpy(hostOutputImageData, deviceOutputImageData, imageWidth * imageHeight * imageChannels * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(histogram_bins, deviceHistogram, n_histogram_bins * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+
+        cudaError_t  error = cudaDeviceSynchronize();
+        if (error != cudaSuccess)
+        {
+            fprintf(stderr, "GPU assert: %s  in cudaDeviceSynchronize \n", cudaGetErrorString(error));
+            return EXIT_FAILURE;
+        }
+
+        std::string lbp_filename = ppm_dir + colour[image_idx] + "_lbp.ppm";
+        PPM_export(lbp_filename.c_str(), outputImage);
+        std::string hist_filename = "res/histograms/" + colour[image_idx] + "_hist.csv";
+        saveHistogramToCsv(histogram_bins, n_histogram_bins, hist_filename);
+
+        //CUDA Tiling Version with n_runs times mean
+        delta_time = 0;
+        for (int j = 0; j < n_runs; j++){
+            std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
+            LBPkernelTiling<<<dimGrid, dimBlock>>>(deviceInputImageData, deviceOutputImageData, imageWidth, imageHeight, deviceHistogram, n_histogram_bins);
+            std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
+            delta_time += std::chrono::duration_cast<std::chrono::duration<float>>(end_time - start_time).count();
+        }
+        delta_time /= n_runs;
+        printf("Parallel Time execution for Tiling version: %f", delta_time);
+        csvLine = dataset[img_idx] + "," + std::to_string(delta_time) + "\n";
+        csvFile << csvLine;
+
+        // copy from device to host memory
+        cudaMemcpy(hostOutputImageData, deviceOutputImageData, imageWidth * imageHeight * imageChannels * sizeof(float), cudaMemcpyDeviceToHost);
+        cudaMemcpy(histogram_bins, deviceHistogram, n_histogram_bins * sizeof(unsigned int), cudaMemcpyDeviceToHost);
+
+        cudaError_t  error = cudaDeviceSynchronize();
+        if (error != cudaSuccess)
+        {
+            fprintf(stderr, "GPU assert: %s  in cudaDeviceSynchronize \n", cudaGetErrorString(error));
+            return EXIT_FAILURE;
+        }
+
+
+
+        //Verify histogram propriety
+        /*unsigned  int sum =0;
+        for (int i=0; i<n_histogram_bins; i++){
+            sum += histogram_bins[i];
+        }
+        //assert (sum == imageHeight * imageWidth);
+        printf("sum: %d\n", sum);
+        printf("image width x height %d x %d : %d \n", imageWidth, imageHeight, imageWidth * imageHeight);*/
+
+        // free device memory
+        cudaFree(deviceInputImageData);
+        cudaFree(deviceOutputImageData);
+        cudaFree(deviceHistogram);
+
+        Image_delete(outputImage);
+        Image_delete(inputImage);
     }
-
-    imageWidth = Image_getWidth(inputImage);
-    imageHeight = Image_getHeight(inputImage);
-    imageChannels = Image_getChannels(inputImage);
-    assert(imageChannels == 1);
-    outputImage = Image_new(imageWidth, imageHeight, imageChannels);
-
-    hostInputImageData = Image_getData(inputImage);
-    hostOutputImageData = Image_getData(outputImage);
-
-
-    // allocate device buffers
-    cudaMalloc((void **) &deviceInputImageData,
-               imageWidth * imageHeight * imageChannels * sizeof(float));
-    cudaMalloc((void **) &deviceOutputImageData,
-               imageWidth * imageHeight * imageChannels * sizeof(float));
-    cudaMalloc((void **) &deviceHistogram,
-               n_histogram_bins * sizeof(unsigned int));
-
-    // copy memory from host to device
-    cudaMemcpy(deviceInputImageData, hostInputImageData,
-               imageWidth * imageHeight * imageChannels * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(deviceHistogram, histogram_bins,
-               n_histogram_bins * sizeof(unsigned int), cudaMemcpyHostToDevice);
-
-//    dim3 dimBlock(TILE_WIDTH, TILE_WIDTH, 1);
-//    dim3 dimBlock(BLOCK_DIM, BLOCK_DIM);
-
-    dim3 dimGrid(ceil((float) imageWidth / TILE_WIDTH), ceil((float) imageHeight / TILE_WIDTH));
-    dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
-    printf("dimGrid {%d, %d, %d}, dimBlock: {%d, %d, %d}\n", dimGrid.x, dimGrid.y , dimGrid.z, dimBlock.x, dimBlock.y , dimBlock.z);
-//    LBPkernel<<<dimGrid, dimBlock, n_histogram_bins * sizeof(unsigned int)>>>(deviceInputImageData, deviceOutputImageData, imageWidth, imageHeight, deviceHistogram, n_histogram_bins);
-    LBPkernelTiling<<<dimGrid, dimBlock>>>(deviceInputImageData, deviceOutputImageData, imageWidth, imageHeight, deviceHistogram, n_histogram_bins);
-    cudaError_t  error = cudaDeviceSynchronize();
-    if (error != cudaSuccess)
-    {
-        fprintf(stderr, "GPU assert: %s  in cudaDeviceSynchronize \n", cudaGetErrorString(error));
-        return EXIT_FAILURE;
-    }
-
-    // copy from device to host memory
-    cudaMemcpy(hostOutputImageData, deviceOutputImageData, imageWidth * imageHeight * imageChannels * sizeof(float),
-               cudaMemcpyDeviceToHost);
-    cudaMemcpy(histogram_bins, deviceHistogram, n_histogram_bins * sizeof(unsigned int),
-               cudaMemcpyDeviceToHost);
-
-    std::string lbp_filename = ppm_dir + colour[image_idx] + "_lbp.ppm";
-    PPM_export(lbp_filename.c_str(), outputImage);
-
-    unsigned  int sum =0;
-    for (int i=0; i<n_histogram_bins; i++){
-        sum += histogram_bins[i];
-    }
-//    assert (sum == imageHeight * imageWidth);
-    printf("sum: %d\n", sum);
-    printf("image width x height %d x %d : %d \n", imageWidth, imageHeight, imageWidth * imageHeight);
-    std::string hist_filename = "res/histograms/" + colour[image_idx] + "_hist.csv";
-    saveHistogramToCsv(histogram_bins, n_histogram_bins, hist_filename);
-
-    // free device memory
-    cudaFree(deviceInputImageData);
-    cudaFree(deviceOutputImageData);
-    cudaFree(deviceHistogram);
-
-    Image_delete(outputImage);
-    Image_delete(inputImage);
+    csvFile.close()
 
     return 0;
 
