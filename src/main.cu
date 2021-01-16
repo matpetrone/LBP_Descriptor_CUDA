@@ -5,6 +5,7 @@
 #include "LbpUtils.h"
 #include "Image.h"
 #include "PPM.h"
+#include <chrono>
 //#include "Lbp.cuh"
 
 // Constant values for LBP kerel
@@ -234,7 +235,7 @@ int main() {
             //If RGB image convert to grayscale
             Image_t* oi = PPMtoGrayscale(inputImage);
             inputImage = oi;
-            std::string gray_img_filename = ppm_dir + dataset[image_idx] + "_gray" + ".ppm";
+            std::string gray_img_filename = ppm_dir + dataset[img_idx] + "_gray" + ".ppm";
             PPM_export(gray_img_filename.c_str(), oi);
         }
         imageWidth = Image_getWidth(inputImage);
@@ -258,18 +259,19 @@ int main() {
         dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
 
         //CUDA non-Tiling Version with n_runs times mean
-        int n_runs = 15;
-        String csvLine = "N. runs: " + std::to_string(n_runs) + "\n";
+        int n_runs = 1;
+        std::string csvLine = "N. runs: " + std::to_string(n_runs) + "\n";
         csvFile << csvLine;
         float delta_time = 0;
         for (int j = 0; j < n_runs; j++){
             std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
             LBPkernel<<<dimGrid, dimBlock, n_histogram_bins * sizeof(unsigned int)>>>(deviceInputImageData, deviceOutputImageData, imageWidth, imageHeight, deviceHistogram, n_histogram_bins);
+            //LBPkernelTiling<<<dimGrid, dimBlock>>>(deviceInputImageData, deviceOutputImageData, imageWidth, imageHeight, deviceHistogram, n_histogram_bins);
             std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
-            delta_time += std::chrono::duration_cast<std::chrono::duration<float>>(end_time - start_time).count();
+            delta_time += std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
         }
         delta_time /= n_runs;
-        printf("Parallel Time execution for non-Tiling version: %f", delta_time);
+        printf("Parallel Time execution on %d image: %f\n", imageHeight,delta_time);
         csvLine = dataset[img_idx] + "," + std::to_string(delta_time) + "\n";
         csvFile << csvLine;
 
@@ -284,36 +286,10 @@ int main() {
             return EXIT_FAILURE;
         }
 
-        std::string lbp_filename = ppm_dir + colour[image_idx] + "_lbp.ppm";
+        std::string lbp_filename = ppm_dir + dataset[img_idx] + "_lbp.ppm";
         PPM_export(lbp_filename.c_str(), outputImage);
-        std::string hist_filename = "res/histograms/" + colour[image_idx] + "_hist.csv";
+        std::string hist_filename = "res/histograms/" + dataset[img_idx] + "_hist.csv";
         saveHistogramToCsv(histogram_bins, n_histogram_bins, hist_filename);
-
-        //CUDA Tiling Version with n_runs times mean
-        delta_time = 0;
-        for (int j = 0; j < n_runs; j++){
-            std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
-            LBPkernelTiling<<<dimGrid, dimBlock>>>(deviceInputImageData, deviceOutputImageData, imageWidth, imageHeight, deviceHistogram, n_histogram_bins);
-            std::chrono::high_resolution_clock::time_point end_time = std::chrono::high_resolution_clock::now();
-            delta_time += std::chrono::duration_cast<std::chrono::duration<float>>(end_time - start_time).count();
-        }
-        delta_time /= n_runs;
-        printf("Parallel Time execution for Tiling version: %f", delta_time);
-        csvLine = dataset[img_idx] + "," + std::to_string(delta_time) + "\n";
-        csvFile << csvLine;
-
-        // copy from device to host memory
-        cudaMemcpy(hostOutputImageData, deviceOutputImageData, imageWidth * imageHeight * imageChannels * sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(histogram_bins, deviceHistogram, n_histogram_bins * sizeof(unsigned int), cudaMemcpyDeviceToHost);
-
-        cudaError_t  error = cudaDeviceSynchronize();
-        if (error != cudaSuccess)
-        {
-            fprintf(stderr, "GPU assert: %s  in cudaDeviceSynchronize \n", cudaGetErrorString(error));
-            return EXIT_FAILURE;
-        }
-
-
 
         //Verify histogram propriety
         /*unsigned  int sum =0;
@@ -331,8 +307,9 @@ int main() {
 
         Image_delete(outputImage);
         Image_delete(inputImage);
+
     }
-    csvFile.close()
+    csvFile.close();
 
     return 0;
 

@@ -44,7 +44,7 @@ std::vector<std::vector<int>> getImageFromCsv(std::string& csv_file_name){
 };
 
 void saveHistogramToCsv(unsigned int histogram_bins[], const int n_bins, std::string &filename ){
-    std::cout << "saveHistogramToCsv" << std::endl;
+    //std::cout << "saveHistogramToCsv" << std::endl;
 
     std::ofstream myFile(filename);
 
