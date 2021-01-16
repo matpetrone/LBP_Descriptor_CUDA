@@ -67,7 +67,7 @@ n_bin = data[:,0]
 bin_values = data[:,1]
 # print(max(bin_values))
 
-plotHistogram(n_bin, bin_values, image_name + ".jpg")
+plotHistogram(n_bin, bin_values, "../res/histograms/"+ image_name + ".jpg")
 
 
 def main(images_dir, filename, out_dir):

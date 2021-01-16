@@ -14,8 +14,11 @@
 
 #define CUDA_CHECK_RETURN(value) CheckCudaErrorAux(__FILE__,__LINE__, #value, value)
 
-#define BLOCK_DIM 32
-
+#define TILE_WIDTH 16
+#define BLOCK_DIM (TILE_WIDTH + MASK_WIDTH - 1)
+static_assert(BLOCK_DIM * BLOCK_DIM < 1024, "max number of threads per block exceeded");
+#define ww (TILE_WIDTH + MASK_WIDTH - 1)
+#define MASK_RADIUS (MASK_WIDTH / 2)
 
 static void CheckCudaErrorAux(const char *, unsigned, const char *, cudaError_t);
 
@@ -47,6 +50,9 @@ __global__ void LBPkernel(float *img, float *out_img, int width, int height, uns
             histogram_bins_sm[binIdx] = 0;
         }
     }
+
+//    for (int i = threadIdx.x; i < SHARED_SIZE; i += blockDim.x)
+//        shared_array[i] = INITIAL_VALUE;
     __syncthreads();
 
     // Ensure that threads do not attempt illegal memory access (this can happen because there could be more threads than elements in an array)
@@ -54,16 +60,15 @@ __global__ void LBPkernel(float *img, float *out_img, int width, int height, uns
         int pixVal = 0;
         int threshold_values[neighborhood];
 //        std::vector<int> threshold_values;
-        int N_start_col = center_col - 1;
-//        int N_start_col = center_col - (MASK_WIDTH / 2);
-        int N_start_row = center_row - 1;
-//        int N_start_row = center_row - (MASK_WIDTH / 2);
+        int N_start_col = center_col - (MASK_WIDTH / 2);
+        int N_start_row = center_row - (MASK_WIDTH / 2);
         int arr_idx = 0;
 //        iterate over mask pixel values
         for (int j = 0; j < MASK_WIDTH; j++){
             for (int k = 0; k < MASK_WIDTH; k++){
                 int curRow = N_start_row + j;
                 int curCol = N_start_col + k;
+
                 // Verify we have a valid image pixel
                 if(curRow > -1 && curRow < height && curCol > -1 && curCol < width) {
                     if (curRow == center_row && curCol == center_col){
@@ -79,12 +84,11 @@ __global__ void LBPkernel(float *img, float *out_img, int width, int height, uns
 //                    }
                 }else
                     arr_idx++;
-
             }
         }
 //        ---
-        if (arr_idx > 4)
-            printf("ARR VALUE: %d\n", arr_idx);
+//        if (arr_idx > 4)
+//            printf("ARR VALUE: %d\n", arr_idx);
         for (int i=0; i<8; i++){  // vec[i] operation  has O(1) Complexity
             pixVal += threshold_values[i] * (int)exp2f(i);
         }
@@ -102,14 +106,85 @@ __global__ void LBPkernel(float *img, float *out_img, int width, int height, uns
             }
 //            printf("finish histogram to glob mem, blockIDX: %d, %d\n", blockIdx.x, blockIdx.y);
         }
-
-
     }
-
-
-
 }
 
+__global__ void LBPkernelTiling(float *img, float *out_img, int width, int height, unsigned int *histogram_bins, int num_bins){
+
+    extern __shared__ unsigned int histogram_bins_sm[]; // dynamically allocated shared memory to compute histogram
+    __shared__ float sm_matrix[ww][ww];
+//    printf("Image w %d, h %d, channels: %d\n", width, height, channels);
+//    printf("ThreadIdx.x :  %d\n", threadIdx.x + blockIdx.x * blockDim.x);
+
+
+    // First batch loading (Load TILE_WIDTH*TILE_WIDTH elements)
+    int dest = threadIdx.y * TILE_WIDTH + threadIdx.x;
+    int destY = dest / ww;
+    int destX = dest % ww;
+    int srcY = blockIdx.y * TILE_WIDTH + destY - MASK_RADIUS;
+    int srcX = blockIdx.x * TILE_WIDTH + destX - MASK_RADIUS;
+    int src = srcY * width + srcX;
+    if (srcY >= 0 && srcY < height && srcX >= 0 && srcX < width) {
+        sm_matrix[destY][destX] = img[src];
+    } else {
+        sm_matrix[destY][destX] = 0;
+    }
+
+    // Second batch loading (Load the data outside the TILE_WIDTH*TILE_WIDTH)
+    dest = threadIdx.y * TILE_WIDTH + threadIdx.x + TILE_WIDTH * TILE_WIDTH;
+    destY = dest / ww;
+    destX = dest % ww;
+    srcY = blockIdx.y * TILE_WIDTH + destY - MASK_RADIUS;
+    srcX = blockIdx.x * TILE_WIDTH + destX - MASK_RADIUS;
+    src =  srcY * width + srcX ;
+    if (destY < ww) {
+        if (srcY >= 0 && srcY < height && srcX >= 0 && srcX < width) {
+            sm_matrix[destY][destX] = img[src];
+        } else {
+            sm_matrix[destY][destX] = 0;
+        }
+    }
+    __syncthreads();
+//    printf("ThreadIdx.x :  %d done.\n", threadIdx.x + blockIdx.x * blockDim.x);
+
+    int pixVal = 0;
+    int threshold_values[neighborhood];
+    int center_col = blockIdx.x * TILE_WIDTH + threadIdx.x;
+    int center_row = blockIdx.y * TILE_WIDTH + threadIdx.y;
+    int N_start_col = center_col - (MASK_WIDTH / 2);
+    int N_start_row = center_row - (MASK_WIDTH / 2);
+    int arr_idx = 0;
+
+//        iterate over mask pixel values
+    for (int j = 0; j < MASK_WIDTH; j++){
+        for (int k = 0; k < MASK_WIDTH; k++){
+            int curRow = N_start_row + j;
+            int curCol = N_start_col + k;
+
+            // Verify we have a valid image pixel
+            if(curRow > -1 && curRow < height && curCol > -1 && curCol < width) {
+                if (curRow == center_row && curCol == center_col){
+
+                } else
+                {
+                    threshold_values[arr_idx] = (img[curRow * width + curCol] >= img[center_row * width + center_col]) ? 1 : 0;
+                    arr_idx ++;
+                }
+            }else
+                arr_idx++;
+        }
+    }
+
+    for (int i=0; i<8; i++){  // vec[i] operation  has O(1) Complexity
+        pixVal += threshold_values[i] * (int)exp2f(i);
+    }
+    printf("pixVAL: %d\n", pixVal);
+    out_img[center_row * width + center_col] = (float)pixVal / 255;
+    __syncthreads();
+
+// compute histogram
+
+}
 
 int main() {
 //    cudaDeviceProp deviceProp;
@@ -117,7 +192,6 @@ int main() {
 //    std::cout << "Num SM: " << deviceProp.multiProcessorCount << std::endl;
 //    std::cout << "Max threads per block: " << deviceProp.maxThreadsPerBlock << std::endl;
 //    std::cout << "Shared memory per block: " << deviceProp.sharedMemPerBlock << std::endl;
-
 
 // -----------------
     int imageChannels;
@@ -130,15 +204,13 @@ int main() {
     float *deviceInputImageData;
     float *deviceOutputImageData;
     unsigned int* deviceHistogram;
-//    unsigned int* finalHostHistogram;
-
 
     int n_histogram_bins = 256; // pixel values from 0 to 255
     unsigned int histogram_bins[n_histogram_bins];
     for(int i = 0; i<n_histogram_bins; i++)
         histogram_bins[i] = 0;
 
-    std::string colour[4] = { "sample_1920_1280", "computer_programming", "post_2", "borabora_1" };
+    std::string colour[5] = { "sample_1920_1280", "computer_programming", "post_2", "borabora_1", "leopard" };
 //    std::string filename = "res/images/ppm/computer_programming.ppm";
     std::string ppm_dir = "res/images/ppm/";
     int image_idx = 1;
@@ -185,8 +257,9 @@ int main() {
 //    dim3 dimBlock(BLOCK_DIM, BLOCK_DIM);
     dim3 dimBlock(BLOCK_DIM, BLOCK_DIM);
     printf("dimGrid {%d, %d, %d}, dimBlock: {%d, %d, %d}\n", dimGrid.x, dimGrid.y , dimGrid.z, dimBlock.x, dimBlock.y , dimBlock.z);
-    printf("shared mem: %lu \n", n_histogram_bins * sizeof(unsigned int));
+//    printf("shared mem: %lu \n", n_histogram_bins * sizeof(unsigned int));
     LBPkernel<<<dimGrid, dimBlock, n_histogram_bins * sizeof(unsigned int)>>>(deviceInputImageData, deviceOutputImageData, imageWidth, imageHeight, deviceHistogram, n_histogram_bins);
+//    LBPkernelTiling<<<dimGrid, dimBlock, n_histogram_bins * sizeof(unsigned int)>>>(deviceInputImageData, deviceOutputImageData, imageWidth, imageHeight, deviceHistogram, n_histogram_bins);
     cudaError_t  error = cudaDeviceSynchronize();
     if (error != cudaSuccess)
     {
@@ -207,7 +280,7 @@ int main() {
     for (int i=0; i<n_histogram_bins; i++){
         sum += histogram_bins[i];
     }
-    assert (sum == imageHeight * imageWidth);
+//    assert (sum == imageHeight * imageWidth);
     printf("sum: %d\n", sum);
     printf("image width x height %d x %d : %d \n", imageWidth, imageHeight, imageWidth * imageHeight);
     std::string hist_filename = "res/histograms/" + colour[image_idx] + "_hist.csv";
