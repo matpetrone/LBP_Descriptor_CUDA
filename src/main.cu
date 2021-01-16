@@ -131,6 +131,7 @@ __global__ void LBPkernelTiling(float *img, float *out_img, const int width, con
 //        printf("ELSE pix val: %d , srcX: %d, srcY: %d, width: %d, height: %d, destX: %d, destY: %d, blockIdx.x: %d, blockIdx.y: %d\n", sm_img[destY][destX], srcX, srcY, width, height,destX, destY, blockIdx.x, blockIdx.y);
     }
 
+
     // Second batch loading (Load the data outside the TILE_WIDTH*TILE_WIDTH)
     dest = threadIdx.y * TILE_WIDTH + threadIdx.x + TILE_WIDTH * TILE_WIDTH;
     destY = dest / ww;
@@ -159,7 +160,6 @@ __global__ void LBPkernelTiling(float *img, float *out_img, const int width, con
     if (center_col < width && center_row < height) {
         int pixVal = 0;
         int threshold_values[neighborhood];
-
         int N_start_col = center_col - (MASK_WIDTH / 2);
         int N_start_row = center_row - (MASK_WIDTH / 2);
         int arr_idx = 0;
