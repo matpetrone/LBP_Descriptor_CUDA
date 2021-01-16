@@ -167,8 +167,8 @@ __global__ void LBPkernelTiling(float *img, float *out_img, int width, int heigh
                 if (curRow > -1 && curRow < height && curCol > -1 && curCol < width) {
                     if (curRow == center_row && curCol == center_col) {}
                     else {
-                        threshold_values[arr_idx] = (sm_img[curRow * width + curCol] >=
-                                                     sm_img[center_row * width + center_col]) ? 1 : 0;
+                        threshold_values[arr_idx] = (sm_img[curRow ][curCol] >=
+                                                     sm_img[center_row ][ center_col]) ? 1 : 0;
                         arr_idx++;
                     }
                 } else
@@ -227,7 +227,7 @@ int main() {
     std::string colour[5] = { "sample_1920_1280", "computer_programming", "post_2", "borabora_1", "leopard" };
 //    std::string filename = "res/images/ppm/computer_programming.ppm";
     std::string ppm_dir = "res/images/ppm/";
-    int image_idx = 2;
+    int image_idx = 1;
 
     std::string filename = ppm_dir + colour[image_idx] + ".ppm";
     inputImage = PPM_import(filename.c_str());
