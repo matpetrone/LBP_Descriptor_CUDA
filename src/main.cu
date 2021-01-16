@@ -218,7 +218,7 @@ int main() {
     float *deviceOutputImageData;
     unsigned int* deviceHistogram;
 
-    String csvName = "res/results/results.csv";
+    std::string csvName = "res/results/results.csv";
     std::ofstream csvFile(csvName);
     std::string dataset[7] = {"giraffe360p", "tiger480p", "leopard720p", "cheetah1080p", "deer2160p", "wolf4320p", "panorama8640p"};
     std::string ppm_dir = "res/images/ppm/";
