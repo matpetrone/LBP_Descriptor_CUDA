@@ -14,7 +14,7 @@
 
 #define CUDA_CHECK_RETURN(value) CheckCudaErrorAux(__FILE__,__LINE__, #value, value)
 
-#define TILE_WIDTH 16
+#define TILE_WIDTH 8
 #define BLOCK_DIM TILE_WIDTH
 //#define BLOCK_DIM (TILE_WIDTH + MASK_WIDTH - 1)
 static_assert(BLOCK_DIM * BLOCK_DIM < 1024, "max number of threads per block exceeded");
@@ -96,10 +96,11 @@ __global__ void LBPkernel(float *img, float *out_img, int width, int height, uns
     }
 }
 
-__global__ void LBPkernelTiling(float *img, float *out_img, int width, int height, unsigned int *histogram_bins, int num_bins){
+__global__ void LBPkernelTiling(float *img, float *out_img, const int width, const int height, unsigned int *histogram_bins,const int num_bins){
 
     extern __shared__ unsigned int histogram_bins_sm[]; // dynamically allocated shared memory to compute histogram
     __shared__ float sm_img[ww][ww];
+
 //    printf("Image w %d, h %d, channels: %d\n", width, height, channels);
 //    printf("ThreadIdx.x :  %d\n", threadIdx.x + blockIdx.x * blockDim.x);
 
@@ -110,7 +111,7 @@ __global__ void LBPkernelTiling(float *img, float *out_img, int width, int heigh
 
 //    for (int i=0; i< num_bins; i++)
 //        assert(histogram_bins_sm[i] == 0);
-//
+
 //    __syncthreads();
     // First batch loading (Load TILE_WIDTH*TILE_WIDTH elements)
     int dest = threadIdx.y * TILE_WIDTH + threadIdx.x;
@@ -119,13 +120,15 @@ __global__ void LBPkernelTiling(float *img, float *out_img, int width, int heigh
     int srcY = blockIdx.y * TILE_WIDTH + destY - MASK_RADIUS;
     int srcX = blockIdx.x * TILE_WIDTH + destX - MASK_RADIUS;
     int src = srcY * width + srcX;
-    if (srcY >= 0 && srcY < height && srcX >= 0 && srcX < width) {
-        sm_img[destY][destX] = img[src];
-        printf("first batch loading pix val: %d == %d, srcX: %d, srcY: %d, width: %d, height: %d, destX: %d, destY: %d, blockIdx.x: %d, blockIdx.y: %d\n", sm_img[destY][destX], img[src], srcX, srcY, width, height,destX, destY, blockIdx.x, blockIdx.y);
-    } else {
-        sm_img[destY][destX] = 0;
-        printf("ELSE pix val: %d , srcX: %d, srcY: %d, width: %d, height: %d, destX: %d, destY: %d, blockIdx.x: %d, blockIdx.y: %d\n", sm_img[destY][destX], srcX, srcY, width, height,destX, destY, blockIdx.x, blockIdx.y);
 
+    if (srcY >= 0 && srcY < height && srcX >= 0 && srcX < width) {
+//        printf("if access:  srcX: %d, srcY: %d, destX: %d, destY: %d\n", srcX, srcY,destX, destY);
+        sm_img[destY][destX] = img[src];
+//        printf("first batch loading pix val: %f == %f, srcX: %d, srcY: %d, width: %d, height: %d, destX: %d, destY: %d, blockIdx.x: %d, blockIdx.y: %d\n", sm_img[destY][destX], img[src], srcX, srcY, width, height,destX, destY, blockIdx.x, blockIdx.y);
+    } else {
+//        printf("else: \n");
+        sm_img[destY][destX] = 0;
+//        printf("ELSE pix val: %d , srcX: %d, srcY: %d, width: %d, height: %d, destX: %d, destY: %d, blockIdx.x: %d, blockIdx.y: %d\n", sm_img[destY][destX], srcX, srcY, width, height,destX, destY, blockIdx.x, blockIdx.y);
     }
 
     // Second batch loading (Load the data outside the TILE_WIDTH*TILE_WIDTH)
@@ -138,16 +141,20 @@ __global__ void LBPkernelTiling(float *img, float *out_img, int width, int heigh
     if (destY < ww) {
         if (srcY >= 0 && srcY < height && srcX >= 0 && srcX < width) {
             sm_img[destY][destX] = img[src];
-//            printf("seconda batch loading pixval: %d \n", sm_img[destY][destX]);
+//            printf("seconda batch loading pixval: %f \n", sm_img[destY][destX]);
         } else {
             sm_img[destY][destX] = 0;
         }
     }
     __syncthreads();
 //    printf("ThreadIdx.x :  %d done.\n", threadIdx.x + blockIdx.x * blockDim.x);
+//    printf("loading pix val: %d == %d, srcX: %d, srcY: %d, width: %d, height: %d, destX: %d, destY: %d, blockIdx.x: %d, blockIdx.y: %d\n", sm_img[destY][destX], img[src], srcX, srcY, width, height,destX, destY, blockIdx.x, blockIdx.y);
 
-    int center_col = blockIdx.x * TILE_WIDTH + threadIdx.x;
-    int center_row = blockIdx.y * TILE_WIDTH + threadIdx.y;
+
+    int center_col = threadIdx.x;
+//    int center_col = blockIdx.x * TILE_WIDTH + threadIdx.x;
+//    int center_row = blockIdx.y * TILE_WIDTH + threadIdx.y;
+    int center_row = threadIdx.y;
 
     if (center_col < width && center_row < height) {
         int pixVal = 0;
@@ -167,8 +174,9 @@ __global__ void LBPkernelTiling(float *img, float *out_img, int width, int heigh
                 if (curRow > -1 && curRow < height && curCol > -1 && curCol < width) {
                     if (curRow == center_row && curCol == center_col) {}
                     else {
-                        threshold_values[arr_idx] = (sm_img[curRow * width + curCol] >=
-                                                     sm_img[center_row * width + center_col]) ? 1 : 0;
+//                        printf("curRow %d, curCol %d: sm_img[curRow * width + curCol]\n",curRow, curCol);
+                        threshold_values[arr_idx] = (sm_img[curRow][curCol] >=
+                                                     sm_img[center_row][center_col]) ? 1 : 0;
                         arr_idx++;
                     }
                 } else
@@ -176,17 +184,17 @@ __global__ void LBPkernelTiling(float *img, float *out_img, int width, int heigh
             }
         }
 
-
         for (int i = 0; i < 8; i++) {  // vec[i] operation  has O(1) Complexity
             pixVal += threshold_values[i] * (int) exp2f(i);
         }
 
-//            printf("pixVAL: %d\n", pixVal);
+//            printf("center_row * width + center_col: %d * %d  + %d = %d\n", center_row, width, center_col, center_row * width + center_col);
         out_img[center_row * width + center_col] = (float) pixVal / 255;
         __syncthreads();
+//        printf("pixVal: %d\n", pixVal);
 
         // compute histogram
-        //    if((threadIdx.x - MASK_RADIUS > 0) && (threadIdx.x + MASK_RADIUS < ww) && (threadIdx.y - MASK_RADIUS > 0) && (threadIdx.y + MASK_RADIUS < ww))
+//        if((threadIdx.x - MASK_RADIUS > 0) && (threadIdx.x + MASK_RADIUS < ww) && (threadIdx.y - MASK_RADIUS > 0) && (threadIdx.y + MASK_RADIUS < ww))
         atomicAdd(&(histogram_bins_sm[(unsigned int) pixVal]), 1);
         __syncthreads();
 
@@ -227,7 +235,7 @@ int main() {
     std::string colour[5] = { "sample_1920_1280", "computer_programming", "post_2", "borabora_1", "leopard" };
 //    std::string filename = "res/images/ppm/computer_programming.ppm";
     std::string ppm_dir = "res/images/ppm/";
-    int image_idx = 2;
+    int image_idx = 1;
 
     std::string filename = ppm_dir + colour[image_idx] + ".ppm";
     inputImage = PPM_import(filename.c_str());
@@ -265,14 +273,15 @@ int main() {
                n_histogram_bins * sizeof(unsigned int), cudaMemcpyHostToDevice);
 
 
-    dim3 dimGrid(ceil((float) imageWidth / BLOCK_DIM), ceil((float) imageHeight / BLOCK_DIM));
+    dim3 dimGrid(ceil((float) imageWidth / TILE_WIDTH), ceil((float) imageHeight / TILE_WIDTH));
 
 //    dim3 dimBlock(TILE_WIDTH, TILE_WIDTH, 1);
 //    dim3 dimBlock(BLOCK_DIM, BLOCK_DIM);
-    dim3 dimBlock(BLOCK_DIM, BLOCK_DIM);
+    dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
     printf("dimGrid {%d, %d, %d}, dimBlock: {%d, %d, %d}\n", dimGrid.x, dimGrid.y , dimGrid.z, dimBlock.x, dimBlock.y , dimBlock.z);
 //    printf("shared mem: %lu \n", n_histogram_bins * sizeof(unsigned int));
 //    LBPkernel<<<dimGrid, dimBlock, n_histogram_bins * sizeof(unsigned int)>>>(deviceInputImageData, deviceOutputImageData, imageWidth, imageHeight, deviceHistogram, n_histogram_bins);
+//    LBPkernelTiling<<<dimGrid, dimBlock>>>(deviceInputImageData, deviceOutputImageData, imageWidth, imageHeight, deviceHistogram, n_histogram_bins);
     LBPkernelTiling<<<dimGrid, dimBlock, n_histogram_bins * sizeof(unsigned int)>>>(deviceInputImageData, deviceOutputImageData, imageWidth, imageHeight, deviceHistogram, n_histogram_bins);
     cudaError_t  error = cudaDeviceSynchronize();
     if (error != cudaSuccess)
