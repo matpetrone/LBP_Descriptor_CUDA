@@ -5,6 +5,10 @@ The sequential and first parallel implementations for the same project can be fo
 
 Local binary patterns (LBP) is a type of visual descriptor used for classification in computer vision. It has since been found to be a powerful feature for texture classification.
 
+<p align="center">
+  <img src="https://github.com/matpetrone/LBP_Descriptor_CUDA/res/images/readme_img/ldp_alg" width="600">
+</p>
+
 ### Directories Layout
 
 ```bash
@@ -23,11 +27,24 @@ Local binary patterns (LBP) is a type of visual descriptor used for classificati
 
 ## Dataset 
 
-To generate matrix from images:
+Images used for experiments are in PPM format and some examples can be found in res/images/ppm folder.
 
-` python src/imageToCsv.py -f <image_filename> [-id <images_directory> -od <csv_matrix_output_directory>]`
+
+### Run experiments
+To run CUDA experiments, follow the commands below:
+
+Compile files:
+
+`nvcc -c src/main.cu  src/PPM.cpp src/Image.cpp`
+
+Link files:
+
+`nvcc Image.o PPM.o  main.o -o main`
+
+And run executable:
+
+`./main`
 
 ## Authors
 This project was carried out in collaboration with [Francesca Del Lungo](https://github.com/francidellungo) for the Parallel Computing exam.
 
-## WORK IN PROGRESS...
