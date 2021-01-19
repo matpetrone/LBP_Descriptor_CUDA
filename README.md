@@ -9,14 +9,16 @@ Local binary patterns (LBP) is a type of visual descriptor used for classificati
 
 ```bash
 ├── src                       # Source files
-│   ├── 
-├── res                      # Resources files
-│   ├── images               # Images
-│   ├── csv_images           # Images as matrices of int (grayscale)
-├── ...
+│   ├── ...
+├── res                       # Resources files
+│   ├── histograms            # Histograms csv and plot
+│   ├── images                # Images 
+│   │   ├── ppm               # Images for experiments in ppm format
+│   ├── plots                 # Plots
+│   ├── results               # Experiments results
 ├── docs                      # Documentation files
-│   ├── 
-├── ...
+│   ├── LBP_descriptor_paper  # LBP analysis and experiments results 
+│   ├── LBP_descriptor_slides # LBP presentation of LBP implementation and experiments results 
 ```
 
 ## Dataset 
