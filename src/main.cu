@@ -16,7 +16,7 @@
 
 #define CUDA_CHECK_RETURN(value) CheckCudaErrorAux(__FILE__,__LINE__, #value, value)
 
-#define TILE_WIDTH 4
+#define TILE_WIDTH 8
 #define BLOCK_DIM TILE_WIDTH
 //#define BLOCK_DIM (TILE_WIDTH + MASK_WIDTH - 1)
 static_assert(BLOCK_DIM * BLOCK_DIM <= 1024, "max number of threads per block exceeded");
@@ -128,7 +128,6 @@ __global__ void LBPkernelTiling(float *img, float *out_img, const int width, con
     } else {
         sm_img[destY][destX] = 0;
     }
-
 
     // Second batch loading (Load the data outside the TILE_WIDTH*TILE_WIDTH)
     dest = threadIdx.y * TILE_WIDTH + threadIdx.x + TILE_WIDTH * TILE_WIDTH;
