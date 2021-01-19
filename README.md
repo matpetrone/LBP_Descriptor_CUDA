@@ -5,7 +5,7 @@ The sequential and first parallel implementations for the same project can be fo
 
 Local binary patterns (LBP) is a type of visual descriptor used for classification in computer vision. It has since been found to be a powerful feature for texture classification.
 
-
+![alttext](https://github.com/matpetrone/LBP_Descriptor_CUDA/blob/master/res/images/readme_img/ldp_alg.png?raw=true)
 
 ### Directories Layout
 
